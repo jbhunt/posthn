@@ -16,6 +16,9 @@ def _getChapterNumber(
     Identify the chapter number
     """
 
+    # I'm using a global variables (so sue me)
+    global chapterLabelingPatternSets
+
     # Insert the user-specified pattern set
     if chapterLabelingPatternSet is not None:
         chapterLabelingPatternSets.insert(
