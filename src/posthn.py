@@ -3,15 +3,25 @@ import numpy as np
 import pathlib as pl
 from PIL import Image
 
-chapterLabelingPatternSets = (
+chapterLabelingPatternSets = [
     ('Ch\.\s\d\.\d{2}', '\d\.\d{2}'), # Example: Ch. 0.01
     ('Ch\.\s\d+', '\d+') # Example: Ch. 26
-)
+]
 
-def _getChapterNumber(folder):
+def _getChapterNumber(
+    folder,
+    chapterLabelingPatternSet=None
+    ):
     """
     Identify the chapter number
     """
+
+    # Insert the user-specified pattern set
+    if chapterLabelingPatternSet is not None:
+        chapterLabelingPatternSets.insert(
+            0,
+            chapterLabelingPatternSet,
+        )
 
     # Search for the chapter number using each set of patterns
     chapterNumberIdentified = False
@@ -29,9 +39,14 @@ def _getChapterNumber(folder):
         if chapterNumberIdentified:
             break
 
+    # Make sure to remove the user-specificed pattern set
+    if chapterLabelingPatternSet is not None:
+        chapterLabelingPatternSets.remove(
+            chapterLabelingPatternSet
+        )
+
     #
     if string == folder.name:
-        import pdb; pdb.set_trace()
         raise Exception(f'Failed to identify chapter number for folder: {folder.name}')
 
     return float(string)
@@ -58,6 +73,7 @@ def createPortableDocument(
     filename=None,
     outputFolder=None,
     mangaTitle=None,
+    chapterLabelingPatternSet=None
     ):
     """
     Combine images from each chapter into a pdf
@@ -72,7 +88,10 @@ def createPortableDocument(
     for subfolder in subfolders:
         if subfolder.is_dir() == False:
             continue
-        chapterNumber = _getChapterNumber(subfolder)
+        chapterNumber = _getChapterNumber(
+            subfolder,
+            chapterLabelingPatternSet=chapterLabelingPatternSet
+        )
         if chapterNumber < chapterRange[0]:
             chapterRange[0] = chapterNumber
         if chapterNumber > chapterRange[1]:
