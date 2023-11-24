@@ -3,56 +3,33 @@ import numpy as np
 import pathlib as pl
 from PIL import Image
 
-chapterLabelingPatternSets = [
-    ('Ch\.\s\d\.\d{2}', '\d\.\d{2}'), # Example: Ch. 0.01
-    ('Ch\.\s\d+', '\d+') # Example: Ch. 26
-]
-
-def _getChapterNumber(
-    folder,
-    chapterLabelingPatternSet=None
-    ):
+def _parseFolderName(folder):
     """
-    Identify the chapter number
+    Extract the volume and chapter numbers from the name of the folder
     """
 
-    # I'm using a global variables (so sue me)
-    global chapterLabelingPatternSets
+    lowered = folder.name.lower()
+    chapterNumber, volumeNumber = None, None
+    if bool(re.search('vol', lowered)):
+        matches = re.findall('vol[^\d]*\d+', lowered)
+        if len(matches) == 1:
+            substring = matches.pop()
+            matches = re.findall('(\d+(?:\.\d+)?)', substring)
+            if len(matches) == 1:
+                volumeNumber = float(matches.pop())
 
-    # Insert the user-specified pattern set
-    if chapterLabelingPatternSet is not None:
-        chapterLabelingPatternSets.insert(
-            0,
-            chapterLabelingPatternSet,
-        )
+    if bool(re.search('ch', lowered)):
+        matches = re.findall('ch[^\d]*\d+', lowered)
+        if len(matches) == 1:
+            substring = matches.pop()
+            matches = re.findall('(\d+(?:\.\d+)?)', substring)
+            if len(matches) == 1:
+                chapterNumber = float(matches.pop())
 
-    # Search for the chapter number using each set of patterns
-    chapterNumberIdentified = False
-    for patternSet in chapterLabelingPatternSets:
-        string = folder.name
-        for i, pattern in enumerate(patternSet):
-            matches = re.findall(pattern, string)
-            if len(matches) != 1:
-                break
-            string = matches.pop()
-            if i == len(patternSet) - 1:
-                chapterNumberIdentified = True
+    if chapterNumber is None:
+        raise Exception(f'Could not extract chapter number from folder: {folder.name}')
 
-        # Break out of the search: one of the pattern sets worked
-        if chapterNumberIdentified:
-            break
-
-    # Make sure to remove the user-specificed pattern set
-    if chapterLabelingPatternSet is not None:
-        chapterLabelingPatternSets.remove(
-            chapterLabelingPatternSet
-        )
-
-    #
-    if string == folder.name:
-        raise Exception(f'Failed to identify chapter number for folder: {folder.name}')
-
-    return float(string)
+    return volumeNumber, chapterNumber
 
 def _collectImages(folder):
     """
@@ -76,7 +53,6 @@ def createPortableDocument(
     filename=None,
     outputFolder=None,
     mangaTitle=None,
-    chapterLabelingPatternSet=None
     ):
     """
     Combine images from each chapter into a pdf
@@ -91,9 +67,8 @@ def createPortableDocument(
     for subfolder in subfolders:
         if subfolder.is_dir() == False:
             continue
-        chapterNumber = _getChapterNumber(
+        volumeNumber, chapterNumber = _parseFolderName(
             subfolder,
-            chapterLabelingPatternSet=chapterLabelingPatternSet
         )
         if chapterNumber < chapterRange[0]:
             chapterRange[0] = chapterNumber
@@ -106,6 +81,7 @@ def createPortableDocument(
     imageObjects = list()
     for i in chapterIndex:
         subfolder = subfolders[i]
+        print(f'Collecting images from folder: {subfolder.name}')
         imageFiles, imageIndex = _collectImages(subfolder)
         for i in imageIndex:
             imageObject = Image.open(str(imageFiles[i])).convert('L')
@@ -118,12 +94,14 @@ def createPortableDocument(
         if mangaTitle is None:
             filename = f'omnibus (Chapters {chapterRange[0]} - {chapterRange[1]}).pdf'
         else:
-            filename = f'{mangaTitle} omnibus (Chapters {chapterRange[0]} - {chapterRange[1]}).pdf'
+            filename = f'{mangaTitle} (Chapters {chapterRange[0]} - {chapterRange[1]}).pdf'
     dst = outputFolder.joinpath(filename)
 
     # Create the pdf
+    print(f'Generating pdf ...', end='\r')
     imageObjects[0].save(
         str(dst), "PDF", quality=95, save_all=True, append_images=imageObjects[1:]
     )    
+    print(f'Generating pdf ... Done!')
 
     return dst
